@@ -17,6 +17,13 @@
 
 #include <stdbool.h>
 
+/* Compile-time switch for the previous, fixed-size static staging scheme that
+ * dubhe_hash.c / dubhe_sca.c keep as a reference. 0: dynamic SRAM-heap staging
+ * only (current behaviour); 1: also build the legacy static blocks. */
+#ifndef DUBHE_USE_LEGACY_STATIC_STAGE
+#define DUBHE_USE_LEGACY_STATIC_STAGE  0
+#endif
+
 typedef enum dubhe_module_type {
     DBH_MODULE_HASH = 0,
     DBH_MODULE_SCA,

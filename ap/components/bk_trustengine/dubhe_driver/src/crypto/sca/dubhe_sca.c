@@ -21,10 +21,188 @@
 #include "pal_string.h"
 #include "dubhe_intr_handler.h"
 #include "reg_base.h"
+/* bk_dcache_addr_is_cacheable(): tells whether the CPU caches a buffer. */
+#include "cache.h"
+/* os_sram_malloc()/psram_malloc()/os_free(): DMA-visible staging arenas. */
+#include <os/mem.h>
+
+/* The engine fetches keys/IVs/input with its own DMA as soon as the command
+ * queue word holding the address is written. The CPU stores that filled the
+ * staging buffer may still be in the write buffer at that moment, so the DMA
+ * could read a partly updated copy. This was seen as a GHASH seed whose first
+ * 32-bit word was still the previous value, which made GCM decryption fail
+ * intermittently. Drain the stores before handing the address to the engine. */
+#define DUBHE_SCA_DMA_BARRIER( ) __asm volatile ( "dsb 0xf" ::: "memory" )
 
 #define PROC_TIME_FOR_ONE_BLOCK  ( 10 )
 
 #define DBH_SCA_DMA_ADDR(p) ((uint32_t)SOC_SRAM_PERI_ADDR((uintptr_t)(p)))
+
+/*
+ * The TE200 DMA master can reach SRAM (CPU alias 0x2Cxxxxxx, peripheral alias
+ * 0x28/0x38xxxxxx), non-cacheable PSRAM and flash, but it does not snoop the
+ * CPU caches: a buffer the CPU caches (AP_PSRAM_CACHE_HEAP, PSRAM code
+ * section) is stale from the engine's point of view, and a buffer the engine
+ * writes is stale from the CPU's point of view.
+ *
+ * libtuyaos.a allocates its mbedtls contexts and I/O buffers in PSRAM, so the
+ * key/iv fields of the context, the small scratch blocks and any cacheable
+ * caller buffer are staged. The static staging buffers below are .bss
+ * (-> SRAM) and are only used while DBH_SCA_MUTEX is held; the large
+ * input/output buffers use the SRAM heap for short records and the
+ * non-cacheable PSRAM heap for long ones, so a single TLS record cannot
+ * drain the SRAM heap.
+ */
+static uint8_t s_sca_ek1_stage[32] __attribute__( ( aligned( 16 ) ) );
+static uint8_t s_sca_ek2_stage[16] __attribute__( ( aligned( 16 ) ) );
+static uint8_t s_sca_ek3_stage[16] __attribute__( ( aligned( 16 ) ) );
+/* The GHASH seed and the CTR counter use separate slots: the engine may still
+ * be fetching one of them while the next SCA_init stages the other, and with a
+ * single shared slot the two values could be mixed. */
+static uint8_t s_sca_iv_stage[16] __attribute__( ( aligned( 16 ) ) );
+static uint8_t s_sca_ctr_iv_stage[16] __attribute__( ( aligned( 16 ) ) );
+static uint8_t s_sca_extra_stage[16] __attribute__( ( aligned( 16 ) ) );
+static uint8_t s_sca_temp_stage[16] __attribute__( ( aligned( 16 ) ) );
+static uint8_t s_sca_mac_stage[16] __attribute__( ( aligned( 16 ) ) );
+
+static int dubhe_sca_dma_is_sram( const void *p )
+{
+    switch ( ( (uint32_t)(uintptr_t)p ) >> 24 ) {
+    case 0x28:      /* SRAM, peripheral alias */
+    case 0x2C:      /* SRAM, CPU direct alias (0x28 | Bit26) */
+    case 0x38:      /* SRAM, non-secure peripheral alias */
+    case 0x3C:      /* SRAM, non-secure CPU direct alias */
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/*
+ * The engine's own DMA does not snoop the CPU caches, so a buffer can be
+ * handed over as-is as long as the CPU never caches it: SRAM, non-cacheable
+ * PSRAM (AP_PSRAM_HEAP / AP_PSRAM_DATA_SECTION) and flash (read-only input).
+ * Cacheable PSRAM (AP_PSRAM_CACHE_HEAP, AP_PSRAM_CODE_SECTION) still has to
+ * be staged into a DMA-visible arena. Address alignment is not checked: the
+ * engine was validated with 4- and 8-byte aligned buffers.
+ *
+ * Only the (potentially large) input/output of the crypt operation uses this
+ * check; the small key/iv/extra fields keep the SRAM staging.
+ */
+static int dubhe_sca_dma_can_raw( const void *p, size_t len )
+{
+    return !bk_dcache_addr_is_cacheable( p, len );
+}
+
+/* Records up to this size are staged on the (fast) SRAM heap; longer ones go
+ * to the non-cacheable PSRAM heap so that one crypt call cannot drain the
+ * SRAM heap. Both arenas are DMA-visible to the engine. */
+#define DUBHE_SCA_SRAM_STAGE_MAX ( 4 * 1024 )
+
+#if !DUBHE_USE_LEGACY_STATIC_STAGE
+static unsigned char *dubhe_sca_stage_alloc_buf( size_t len )
+{
+    unsigned char *p = NULL;
+
+    if ( len <= DUBHE_SCA_SRAM_STAGE_MAX )
+        p = os_sram_malloc( len );
+
+#ifdef CONFIG_AP_PSRAM_HEAP_ADDR
+    if ( p == NULL ) {
+        unsigned char *ps = psram_malloc( len );
+
+        /* Only hand it to the engine when the heap really is non-cacheable. */
+        if ( ps != NULL ) {
+            if ( !bk_dcache_addr_is_cacheable( ps, len ) )
+                p = ps;
+            else
+                os_free( ps );
+        }
+    }
+#endif
+
+    /* Last resort: the whole record on the SRAM heap (may be tight). */
+    if ( ( p == NULL ) && ( len > DUBHE_SCA_SRAM_STAGE_MAX ) )
+        p = os_sram_malloc( len );
+
+    return p;
+}
+#endif /* !DUBHE_USE_LEGACY_STATIC_STAGE */
+
+/* Return an engine-visible address for p, copying it into stage when p does
+ * not live in SRAM. The engine only reads these parameters. */
+static uint32_t dubhe_sca_stage_dma_addr( const void *p, void *stage, size_t len )
+{
+    if ( dubhe_sca_dma_is_sram( p ) )
+        return DBH_SCA_DMA_ADDR( p );
+
+    pal_memcpy( stage, p, len );
+    DUBHE_SCA_DMA_BARRIER( );
+    return DBH_SCA_DMA_ADDR( stage );
+}
+
+/* Staging copies need no alignment adjustment: the heap returns 8-byte
+ * aligned blocks and the engine was validated with 4- and 8-byte aligned
+ * buffers (mbedtls_align: 250/255/256/257 bytes, no write past the length). */
+
+#if DUBHE_USE_LEGACY_STATIC_STAGE
+/* Previous scheme: records up to 512 B were staged in these two private SRAM
+ * buffers, longer ones fell back to the SRAM heap. Kept as the reference for
+ * a future dynamic + static hybrid (static buffers for short records, heap
+ * for the rest). */
+#define DUBHE_SCA_STATIC_STAGE_MAX 512
+#define DUBHE_SCA_STAGE_ALIGN      16
+
+static unsigned char s_sca_in_stage[DUBHE_SCA_STATIC_STAGE_MAX + DUBHE_SCA_STAGE_ALIGN]
+    __attribute__( ( aligned( DUBHE_SCA_STAGE_ALIGN ) ) );
+static unsigned char s_sca_out_stage[DUBHE_SCA_STATIC_STAGE_MAX + DUBHE_SCA_STAGE_ALIGN]
+    __attribute__( ( aligned( DUBHE_SCA_STAGE_ALIGN ) ) );
+
+#define DUBHE_SCA_IN_STAGE  s_sca_in_stage
+#define DUBHE_SCA_OUT_STAGE s_sca_out_stage
+#else
+#define DUBHE_SCA_IN_STAGE  NULL
+#define DUBHE_SCA_OUT_STAGE NULL
+#endif
+
+/* When sram_buf is not NULL and the record is short enough, the private static
+ * buffer is used and *base stays NULL (nothing to free). Otherwise a
+ * DMA-visible staging buffer is allocated from the SRAM heap or, for long
+ * records, from the non-cacheable PSRAM heap; *base owns the allocation. */
+static unsigned char *dubhe_sca_stage_alloc( size_t len,
+                                             const void *src,
+                                             void **base,
+                                             unsigned char *sram_buf )
+{
+    unsigned char *p;
+
+#if DUBHE_USE_LEGACY_STATIC_STAGE
+    if ( ( sram_buf != NULL ) && ( len <= DUBHE_SCA_STATIC_STAGE_MAX ) ) {
+        p = sram_buf;
+    } else {
+        p = os_sram_malloc( len + DUBHE_SCA_STAGE_ALIGN );
+        if ( p == NULL )
+            return NULL;
+
+        *base = p;
+        p     = (unsigned char *)( ( (uintptr_t)p + DUBHE_SCA_STAGE_ALIGN - 1 )
+                                   & ~(uintptr_t)( DUBHE_SCA_STAGE_ALIGN - 1 ) );
+    }
+#else
+    (void)sram_buf;
+    p = dubhe_sca_stage_alloc_buf( len );
+    if ( p == NULL )
+        return NULL;
+
+    *base = p;
+#endif
+    if ( src != NULL ) {
+        pal_memcpy( p, src, len );
+        DUBHE_SCA_DMA_BARRIER( );
+    }
+
+    return p;
+}
 
 #define BIT_MASK( V, M ) ( ( V ) & ( M ) )
 #define RETRY_COUNT 2
@@ -347,6 +525,7 @@ static int arm_ce_sca_wait_engine_idle( void )
             break;
         }
     }
+
 #if defined( DBH_SCA_DEBUG )
     PAL_LOG_ERR( "### POLLING SCA STAT_REG addr: 0x%08lx, val: 0x%08x\n",
                  DBH_BASE_SCA + DBH_SCA_STAT_REG_OFFSET,
@@ -508,19 +687,47 @@ static int arm_ce_sca_execute_sca_init( arm_ce_sca_context_t *ctx,
 
     /* SCA_init will not trigger an interrupt */
     value &= 0xFFFFFFFE;
+    /* Drain the CPU stores before the engine fetches the command and its
+     * parameters: the key/IV may live in SRAM (stack context, the swap_ctx
+     * copy, an IV filled right before this call) and would otherwise be
+     * handed over as-is with the stores still in the write buffer. The
+     * per-parameter staging path issues its own barrier when it copies. */
+    DUBHE_SCA_DMA_BARRIER( );
     /* Write the SCA_init command function part */
     DBH_WRITE_REGISTER( SCA, SCA_QUEUE, value );
 
     /* Write parameter part */
     if ( key_type == ARM_CE_SCA_EXTERNAL_KEY )
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek1 ) );
+        DBH_WRITE_REGISTER(
+            SCA,
+            SCA_QUEUE,
+            dubhe_sca_stage_dma_addr(
+                ctx->ek1, s_sca_ek1_stage, sizeof( ctx->ek1 ) ) );
     else {
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek3 ) );
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek2 ) );
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek1 ) );
+        DBH_WRITE_REGISTER(
+            SCA,
+            SCA_QUEUE,
+            dubhe_sca_stage_dma_addr(
+                ctx->ek3, s_sca_ek3_stage, sizeof( ctx->ek3 ) ) );
+        DBH_WRITE_REGISTER(
+            SCA,
+            SCA_QUEUE,
+            dubhe_sca_stage_dma_addr(
+                ctx->ek2, s_sca_ek2_stage, sizeof( ctx->ek2 ) ) );
+        DBH_WRITE_REGISTER(
+            SCA,
+            SCA_QUEUE,
+            dubhe_sca_stage_dma_addr(
+                ctx->ek1, s_sca_ek1_stage, sizeof( ctx->ek1 ) ) );
     }
     if ( load_iv ) {
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( iv ) );
+        void *iv_stage = ( aes_mode == DBH_SCA_MODE_CTR ) ? s_sca_ctr_iv_stage
+                                                         : s_sca_iv_stage;
+
+        DBH_WRITE_REGISTER(
+            SCA,
+            SCA_QUEUE,
+            dubhe_sca_stage_dma_addr( iv, iv_stage, ARM_CE_SCA_IV_BYTES ) );
 
         /* For CTR calculate the iv, and save it */
         if ( aes_mode == DBH_SCA_MODE_CTR ) {
@@ -535,6 +742,14 @@ static int arm_ce_sca_execute_sca_init( arm_ce_sca_context_t *ctx,
     }
 
     ret                  = arm_ce_sca_wait_engine_idle( );
+    /* The engine has consumed (or aborted) the staged key/IV copies: wipe
+     * them on success and on BUS_ERR alike so the static staging buffers do
+     * not keep key material around. */
+    dubhe_zeroize( s_sca_ek1_stage, sizeof( s_sca_ek1_stage ) );
+    dubhe_zeroize( s_sca_ek2_stage, sizeof( s_sca_ek2_stage ) );
+    dubhe_zeroize( s_sca_ek3_stage, sizeof( s_sca_ek3_stage ) );
+    dubhe_zeroize( s_sca_iv_stage, sizeof( s_sca_iv_stage ) );
+    dubhe_zeroize( s_sca_ctr_iv_stage, sizeof( s_sca_ctr_iv_stage ) );
     CHECK_RET( );
     ctx->ctx_init_flag   = ARM_CE_SCA_CTX_INITIALIZED;
     ctx->ctx_finish_flag = ARM_CE_SCA_CTX_NEED_FINISH;
@@ -696,7 +911,7 @@ arm_ce_sca_write_process_paramters( arm_ce_sca_context_t *ctx,
 {
     int i                                   = 0;
     uint8_t opcode                          = DBH_SCA_PROCESS_OPCODE;
-    unsigned char temp[ARM_CE_SCA_BLK_SIZE] = {0};
+    unsigned char *temp                      = s_sca_temp_stage;
     uint32_t value                          = 0;
     uint32_t output_addr                    = DBH_SCA_DMA_ADDR( output );
     uint32_t input_addr                     = DBH_SCA_DMA_ADDR( input );
@@ -706,6 +921,14 @@ arm_ce_sca_write_process_paramters( arm_ce_sca_context_t *ctx,
     arm_ce_sca_type_t sca_type              = ctx->sca_type;
     uint8_t last_input[ARM_CE_SCA_BLK_SIZE] = {0};
     uint8_t *last_out                       = NULL;
+
+    /* s_sca_temp_stage is shared between calls, clear what used to be a
+     * zero-initialised stack array. */
+    pal_memset( temp, 0, ARM_CE_SCA_BLK_SIZE );
+    /* extra / temp were just filled by the CPU (handle_input_data), and the
+     * CALLER's buffers may be freshly written as well: drain the stores before
+     * the engine fetches them with its own DMA. */
+    DUBHE_SCA_DMA_BARRIER( );
 
     value |= opcode << DBH_SCA_OPCODE_BIT_SHIFT;
     /* Mode configuration */
@@ -857,9 +1080,11 @@ static int arm_ce_sca_execute_sca_process( arm_ce_sca_context_t *ctx,
                                            unsigned char *output )
 {
     int ret                                  = 0;
-    unsigned char extra[ARM_CE_SCA_BLK_SIZE] = {0};
+    unsigned char *extra                     = s_sca_extra_stage;
     arm_ce_sca_crypt_info_t crypt_info;
     arm_ce_sca_type_t sca_type = ctx->sca_type;
+
+    pal_memset( extra, 0, ARM_CE_SCA_BLK_SIZE );
 
     if ( ctx->ctx_init_flag != ARM_CE_SCA_CTX_INITIALIZED ) {
         PAL_LOG_ERR( " init first!\n" );
@@ -917,21 +1142,40 @@ static int arm_ce_sca_execute_sca_finish( arm_ce_sca_context_t *ctx,
 {
     uint8_t opcode    = DBH_SCA_FINISH_OPCODE;
     uint32_t value    = 0;
-    uint32_t mac_addr = DBH_SCA_DMA_ADDR( mac );
+    uint32_t mac_addr = 0;
+    int mac_staged    = 0;
     int ret           = 0;
+
+    if ( ( ctx->mac_type != ARM_CE_NONE_MAC ) && ( mac != NULL ) ) {
+        if ( dubhe_sca_dma_is_sram( mac ) ) {
+            mac_addr = DBH_SCA_DMA_ADDR( mac );
+        } else {
+            /* The engine writes the MAC straight to mac. */
+            mac_addr   = DBH_SCA_DMA_ADDR( s_sca_mac_stage );
+            mac_staged = 1;
+        }
+    }
+
+    /* Validate the MAC buffer before the first queue word is written: the
+     * FINISH command and its parameter word must be queued as a pair, a
+     * half-written command would desynchronise the engine. */
+    if ( ( ctx->mac_type != ARM_CE_NONE_MAC ) && ( mac == NULL ) )
+        return ( DBH_SCA_PARAM_INVAL_ERR );
 
     value |= opcode << DBH_SCA_OPCODE_BIT_SHIFT;
     /* This command will not trigger an interrupt */
     /* Write function part */
     DBH_WRITE_REGISTER( SCA, SCA_QUEUE, value );
-    if ( ctx->mac_type != ARM_CE_NONE_MAC ) {
-        if ( mac == NULL )
-            return ( DBH_SCA_PARAM_INVAL_ERR );
-        else
-            DBH_WRITE_REGISTER( SCA, SCA_QUEUE, mac_addr );
-    }
+    if ( ctx->mac_type != ARM_CE_NONE_MAC )
+        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, mac_addr );
 
     ret = arm_ce_sca_wait_engine_idle( );
+    if ( mac_staged ) {
+        if ( ret == 0 )
+            pal_memcpy( mac, s_sca_mac_stage, ARM_CE_SCA_IV_BYTES );
+        /* Do not leave the MAC behind when the wait failed. */
+        dubhe_zeroize( s_sca_mac_stage, sizeof( s_sca_mac_stage ) );
+    }
     CHECK_RET( );
     ctx->ctx_finish_flag = 0;  /* reset finish flag */
     ctx->ctx_init_flag = ARM_CE_SCA_CTX_NEED_INIT;
@@ -985,6 +1229,10 @@ int arm_ce_sca_crypt( arm_ce_sca_context_t *ctx,
 {
     int ret = 0;
     arm_ce_sca_context_t swap_ctx;
+    unsigned char *stage_out      = NULL;
+    void *stage_in_base           = NULL;
+    void *stage_out_base          = NULL;
+    unsigned char *output_orig    = output;
 
     if ( ( ctx == NULL ) || ( ctx->magic != ARM_CE_SCA_MAGIC )
          || ( input == NULL ) || ( ARM_CE_SCA_OPERATION_DECRYPT != mode
@@ -1026,6 +1274,43 @@ int arm_ce_sca_crypt( arm_ce_sca_context_t *ctx,
     /* Get command queue lock */
     dubhe_mutex_lock( DBH_SCA_MUTEX );
 #endif
+
+    /* Buffers the CPU does not cache (SRAM, non-cacheable PSRAM, flash) are
+     * DMA-visible, so hand them to the engine directly. Cacheable buffers
+     * (libtuyaos.a hands us record buffers that live in the cacheable PSRAM
+     * heap) are staged into a DMA-visible arena and the result is copied back
+     * at clean_up before the staging buffer is released. */
+    if ( !dubhe_sca_dma_can_raw( input, length ) ) {
+        unsigned char *p = dubhe_sca_stage_alloc( length, input, &stage_in_base,
+                                                  DUBHE_SCA_IN_STAGE );
+
+        if ( p == NULL ) {
+            PAL_LOG_ERR( "no staging buffer for input, len %u\n",
+                         (unsigned int)length );
+            ret = DBH_SCA_PARAM_INVAL_ERR;
+            goto clean_up;
+        }
+        input    = p;
+    }
+    if ( ( output != NULL ) && !dubhe_sca_dma_can_raw( output, length ) ) {
+        /* Preserve whatever the engine does not write back. */
+        unsigned char *p = dubhe_sca_stage_alloc( length, output,
+                                                  &stage_out_base,
+                                                  DUBHE_SCA_OUT_STAGE );
+
+        if ( p == NULL ) {
+            PAL_LOG_ERR( "no staging buffer for output, len %u\n",
+                         (unsigned int)length );
+            ret = DBH_SCA_PARAM_INVAL_ERR;
+            goto clean_up;
+        }
+        stage_out = p;
+        output    = p;
+    }
+
+    /* The caller's stores into input/output must be in memory before the
+     * engine fetches them with its own DMA. */
+    DUBHE_SCA_DMA_BARRIER( );
     /* Multi-session context */
     if ( _g_ce_sca_ctx != ctx ) {
         if ( _g_ce_sca_ctx != NULL ) {
@@ -1043,8 +1328,9 @@ int arm_ce_sca_crypt( arm_ce_sca_context_t *ctx,
         ctx->mode = mode;
         ctx->mac_type = mac_type;
 
-        if ( mac_type != ARM_CE_NONE_MAC )
+        if ( mac_type != ARM_CE_NONE_MAC ) {
             pal_memcpy( iv, ctx->inter_value.last_blk, ARM_CE_SCA_IV_BYTES );
+        }
 
         /* Execute Dubhe SCA_init command */
         ret = arm_ce_sca_execute_sca_init(
@@ -1070,8 +1356,9 @@ int arm_ce_sca_crypt( arm_ce_sca_context_t *ctx,
             ctx->mode = mode;
             ctx->mac_type = mac_type;
 
-            if ( mac_type != ARM_CE_NONE_MAC )
+            if ( mac_type != ARM_CE_NONE_MAC ) {
                 pal_memcpy( iv, ctx->inter_value.last_blk, ARM_CE_SCA_IV_BYTES);
+            }
 
             /* Execute Dubhe SCA_init command */
             ret = arm_ce_sca_execute_sca_init(
@@ -1094,29 +1381,74 @@ _RETRY:
             goto clean_up;
         }
     }
-    ret = arm_ce_sca_execute_sca_process(
-        &swap_ctx, mode, length, iv, stream_block, input, output );
-    if ( ret < 0 ) {
-        if ( ( DBH_SCA_BUS_ERR == ret ) ) {
-            if ( swap_ctx.retry_count++ < RETRY_COUNT ) {
-                /* if mac process failed, should finish ctx first, then retry init */
-                if ( swap_ctx.mac_type != ARM_CE_NONE_MAC ) {
-                    ret = arm_ce_sca_execute_sca_finish(
-                        &swap_ctx, swap_ctx.inter_value.last_blk );
-                    if (ret) {
-                        PAL_LOG_ERR( " execute sca finish failed, reason: %x\n", ret );
-                        goto clean_up;
-                    }
-                    pal_memcpy( iv, ctx->inter_value.last_blk, ARM_CE_SCA_IV_BYTES);
-                }
-                swap_ctx.ctx_init_flag = ARM_CE_SCA_CTX_NEED_INIT;
-                PAL_LOG_ERR( "BUS ERROR reinit engine and retry, time(%d)\n",
-                             ctx->retry_count );
-                goto _RETRY;
-            }
-        }
+    {
+        /* process() consumes iv / stream_block (CTR keeps the running
+         * keystream there) while the command is being prepared. Keep the
+         * pre-call copies so a BUS_ERR retry restarts this very block. */
+        unsigned char iv_save[ARM_CE_SCA_IV_BYTES];
+        unsigned char sb_save[ARM_CE_SCA_IV_BYTES];
 
-        goto clean_up;
+        if ( iv != NULL )
+            pal_memcpy( iv_save, iv, sizeof( iv_save ) );
+        if ( stream_block != NULL )
+            pal_memcpy( sb_save, stream_block, sizeof( sb_save ) );
+
+        ret = arm_ce_sca_execute_sca_process(
+            &swap_ctx, mode, length, iv, stream_block, input, output );
+        if ( ret < 0 ) {
+            if ( ( DBH_SCA_BUS_ERR == ret ) ) {
+                if ( swap_ctx.retry_count++ < RETRY_COUNT ) {
+                    /* if mac process failed, should finish ctx first, then
+                     * retry init */
+                    if ( swap_ctx.mac_type != ARM_CE_NONE_MAC ) {
+                        ret = arm_ce_sca_execute_sca_finish(
+                            &swap_ctx, swap_ctx.inter_value.last_blk );
+                        if (ret) {
+                            PAL_LOG_ERR( " execute sca finish failed, reason: %x\n", ret );
+                            goto session_invalid;
+                        }
+                    }
+                    if ( iv != NULL )
+                        pal_memcpy( iv, iv_save, sizeof( iv_save ) );
+                    if ( stream_block != NULL )
+                        pal_memcpy( stream_block, sb_save, sizeof( sb_save ) );
+                    /* CHECK_RET() has just reset the engine on BUS_ERR, so
+                     * the key/IV programmed by SCA_init are gone and the
+                     * retry must re-init. _RETRY reloads swap_ctx from ctx,
+                     * so the flag has to be set in ctx (writing swap_ctx
+                     * alone is overwritten). */
+                    ctx->ctx_init_flag = ARM_CE_SCA_CTX_NEED_INIT;
+                    /* _RETRY reloads swap_ctx from ctx, which would reset the
+                     * counter to its stale value, so keep the incremented one
+                     * in ctx; otherwise RETRY_COUNT never takes effect. */
+                    ctx->retry_count = swap_ctx.retry_count;
+                    PAL_LOG_ERR( "BUS ERROR reinit engine and retry, time(%d)\n",
+                                 swap_ctx.retry_count );
+                    goto _RETRY;
+                }
+            } else if ( DBH_SCA_DATA_ALIGN_ERR == ret ) {
+                /* handle_input_data() rejected the request before any command
+                 * was queued, so the engine session is still intact: return
+                 * the parameter error and keep the accumulated MAC/session
+                 * state instead of dropping it. */
+                goto clean_up;
+            }
+
+        session_invalid:
+            /* The switch failed (retries exhausted, or the retry could not
+             * finish the MAC session). CHECK_RET() has reset the engine on
+             * BUS_ERR, so the key/IV programmed by SCA_init are gone and the
+             * accumulated state is unknown: drop the session and mark the
+             * context unusable. The next arm_ce_sca_crypt() with this context
+             * takes the fresh-session path and re-inits the engine, instead of
+             * processing on a default engine and returning wrong data. */
+            ctx->ctx_init_flag   = ARM_CE_SCA_CTX_NEED_INIT;
+            ctx->ctx_finish_flag = 0;
+            ctx->retry_count     = 0;
+            _g_ce_sca_ctx        = NULL;
+
+            goto clean_up;
+        }
     }
 
     swap_ctx.retry_count = 0;
@@ -1128,10 +1460,28 @@ _RETRY:
     ret = 0;
 
 clean_up:
+    /* Copy the staged output back before the staging buffer is released. */
+    if ( stage_out != NULL ) {
+        pal_memcpy( output_orig, stage_out, length );
+        stage_out = NULL;
+    }
+    /* CTR plaintext / keystream and the shared temp block would otherwise stay
+     * in SRAM after the last command; wipe them while the engine lock is held. */
+    dubhe_zeroize( s_sca_extra_stage, sizeof( s_sca_extra_stage ) );
+    dubhe_zeroize( s_sca_temp_stage, sizeof( s_sca_temp_stage ) );
 #if defined( DUBHE_FOR_RUNTIME )
     dubhe_mutex_unlock( DBH_SCA_MUTEX );
 #endif
+    if ( stage_out_base != NULL ) {
+        dubhe_zeroize( stage_out_base, length );
+        os_free( stage_out_base );
+        stage_out_base = NULL;
+    }
 exit:
+    if ( stage_in_base != NULL ) {
+        dubhe_zeroize( stage_in_base, length );
+        os_free( stage_in_base );
+    }
     return ( ret );
 }
 
