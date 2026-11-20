@@ -217,7 +217,7 @@ menu "PM"
 	config AON_LDO_SEL_FOR_LV
 		int "Config AON LDO voltage select for low voltage sleep"
 		range 0 7
-		default 3
+		default 4
 		help
 			Config AON LDO voltage select for low voltage sleep.
 			0:0.6V; 1:0.65V; 2:0.7V; 3:0.75V; 4:0.8V; 5:0.85V; 6:0.9V; 7:0.95V.
