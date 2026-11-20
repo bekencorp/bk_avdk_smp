@@ -1887,7 +1887,7 @@ __IRAM_PM void sys_hal_enter_lv(void)
 	bool dpll_fallback_needed               = false;
 #if CONFIG_OPTIMIZE_AON_CURRENT
 	volatile uint32_t valoldosel            = 0;
-  	//volatile uint8_t  ustep                 = 0;
+  	volatile uint8_t  ustep                 = 0;
 #endif
 #if CONFIG_DEEP_LV_DEBUG_LOG
 	volatile uint32_t valoldosel_after_sleep_set = 0;
@@ -2210,11 +2210,15 @@ __IRAM_PM void sys_hal_enter_lv(void)
 	sys_hal_enable_spi_latch();
 	/*aon voltage*/
 #if CONFIG_OPTIMIZE_AON_CURRENT
-	// for(ustep = PM_LOW_VOL_AON_LDO_SEL+1; ustep <= valoldosel; ustep++)
-	// {
-	// 	sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
-	// 	bk_delay_us(10);
-	// }
+	for(ustep = PM_AON_LDO_SEL_FOR_LV+1; ustep <= valoldosel; ustep++)
+	{
+		sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
+		timer_hal_early_delay_us_iram(10);
+	}
+	if(sys_ll_get_ana_reg14_en_alo2corepsw() != 0)
+	{
+		sys_ll_set_ana_reg14_en_alo2corepsw(0);
+	}
 #if CONFIG_DEEP_LV_DEBUG_LOG
 	valoldosel_after_ramp = sys_ll_get_ana_reg9_valoldosel();
 #endif
@@ -2260,18 +2264,14 @@ __IRAM_PM void sys_hal_enter_lv(void)
 	sys_hal_analog_set(ANALOG_REG11, v_ana_r11);
 	sys_hal_analog_set(ANALOG_REG12, v_ana_r12);
 	sys_hal_analog_set(ANALOG_REG13, v_ana_r13);
-#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 	/*
-	 * Restore the complete pre-sleep snapshot for PSRAM and Buck-D, but keep
-	 * en_alo2corepsw asserted as Reset_Handler requires during Deep-LV wake.
-	 * Clearing this bit to its pre-sleep value here removes the core supply
-	 * path before the wireless domain has recovered: BTDM reset then cannot
-	 * self-clear and both wake-correction handshakes time out.
+	 * Restore the complete pre-sleep snapshot for PSRAM and Buck-D.
+	 * en_alo2corepsw (bit0) is already cleared right after the AON LDO ramp
+	 * reaches the pre-sleep voltage, so restoring the pre-sleep value keeps
+	 * the AON-LDO-to-VDDCORE switch in its normal disconnected state. Do not
+	 * force this bit high here: the short is only needed while ramping.
 	 */
-	sys_hal_analog_set(ANALOG_REG14, v_ana_r14 | BIT(0));
-#else
 	sys_hal_analog_set(ANALOG_REG14, v_ana_r14);
-#endif
 	sys_hal_analog_set(ANALOG_REG15, 0);
 
 	sys_hal_analog_set(ANALOG_REG16, v_ana_r16);
@@ -2527,7 +2527,7 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 	bool dpll_fallback_needed               = false;
 #if CONFIG_OPTIMIZE_AON_CURRENT
 	volatile uint32_t valoldosel            = 0;
-  	//volatile uint8_t  ustep                 = 0;
+  	volatile uint8_t  ustep                 = 0;
 #endif
 #if CONFIG_DEEP_LV && CONFIG_DEEP_LV_DEBUG_LOG
 	volatile uint32_t valoldosel_after_sleep_set = 0;
@@ -2927,11 +2927,15 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 	sys_hal_enable_spi_latch();
 	/*aon voltage*/
 #if CONFIG_OPTIMIZE_AON_CURRENT
-	// for(ustep = PM_LOW_VOL_AON_LDO_SEL+1; ustep <= valoldosel; ustep++)
-	// {
-	// 	sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
-	// 	bk_delay_us(10);
-	// }
+	for(ustep = PM_LOW_VOL_AON_LDO_SEL+1; ustep <= valoldosel; ustep++)
+	{
+		sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
+		timer_hal_early_delay_us_iram(10);
+	}
+	if(sys_ll_get_ana_reg14_en_alo2corepsw() != 0)
+	{
+		sys_ll_set_ana_reg14_en_alo2corepsw(0);
+	}
 #if CONFIG_DEEP_LV && CONFIG_DEEP_LV_DEBUG_LOG
 	valoldosel_after_ramp = sys_ll_get_ana_reg9_valoldosel();
 #endif
@@ -2978,18 +2982,14 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 	sys_hal_analog_set(ANALOG_REG11, v_ana_r11);
 	sys_hal_analog_set(ANALOG_REG12, v_ana_r12);
 	sys_hal_analog_set(ANALOG_REG13, v_ana_r13);
-#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 	/*
-	 * Restore the complete pre-sleep snapshot for PSRAM and Buck-D, but keep
-	 * en_alo2corepsw asserted as Reset_Handler requires during Deep-LV wake.
-	 * Clearing this bit to its pre-sleep value here removes the core supply
-	 * path before the wireless domain has recovered: BTDM reset then cannot
-	 * self-clear and both wake-correction handshakes time out.
+	 * Restore the complete pre-sleep snapshot for PSRAM and Buck-D.
+	 * en_alo2corepsw (bit0) is already cleared right after the AON LDO ramp
+	 * reaches the pre-sleep voltage, so restoring the pre-sleep value keeps
+	 * the AON-LDO-to-VDDCORE switch in its normal disconnected state. Do not
+	 * force this bit high here: the short is only needed while ramping.
 	 */
-	sys_hal_analog_set(ANALOG_REG14, v_ana_r14 | BIT(0));
-#else
 	sys_hal_analog_set(ANALOG_REG14, v_ana_r14);
-#endif
 	sys_hal_analog_set(ANALOG_REG15, 0);
 
 	sys_hal_analog_set(ANALOG_REG16, v_ana_r16);
