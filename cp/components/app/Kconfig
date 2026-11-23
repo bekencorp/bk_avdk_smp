@@ -4,11 +4,6 @@ menu "App"
 		bool "Enable Demo Test"
 		default n
 
-	#TODO does UPGRADE here means OTA?
-	config FTPD_UPGRADE
-		bool "Enable Ftpd Upgrade"
-		default n
-
 	config OTA_HTTP
 		depends on WIFI_ENABLE
 		bool "Enable Ota Http"
