@@ -48,10 +48,10 @@ uint32_t rtos_get_time_diff(void) {
 		diff_ms = (uint32_t)((base_os_time + diff_time) - cur_os_time_64);
 	}
 
-	if (diff_ms > 20000) {
-		BK_LOGI(TAG, "aon_rtc diff_ms: %dms.\r\n", diff_ms);
-		BK_LOGI(TAG, "cur aon time: 0x%x:0x%08x\r\n", (u32)(cur_aon_time >> 32), (u32)(cur_aon_time & 0xFFFFFFFF));
-	}
+	/* Do not log here. This function runs in the SysTick ISR and in the
+	 * tickless wake path; while the AON/OS delta is large, a per-tick log
+	 * storm starves the task that unwinds xPendedTicks and can end in a
+	 * tick-compensation livelock (see BK7236SW-14236). */
 
 	return  diff_ms / OS_MS_PER_TICK; // tick
 #else
