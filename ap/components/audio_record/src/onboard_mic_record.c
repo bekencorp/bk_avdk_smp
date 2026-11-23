@@ -183,6 +183,8 @@ static void mic_data_write_task_main(beken_thread_arg_t param_data)
                 case MIC_DATA_WRITE_IDLE:
                     mic_data_write_handle->running = false;
                     wait_time = BEKEN_WAIT_FOREVER;
+                    /* ack: all preceding dma ring reads have finished before this point */
+                    rtos_set_semaphore(&mic_data_write_handle->sem);
                     break;
 
                 case MIC_DATA_WRITE_EXIT:
@@ -271,7 +273,7 @@ static bk_err_t mic_data_write_task_init(onboard_mic_record_priv_t *mic_data_wri
     mic_data_write_handle->write_buff = os_malloc(mic_data_write_handle->frame_size);
     ONBOARD_MIC_RECORD_CHECK_NULL(mic_data_write_handle->write_buff);
 
-    os_memset(mic_data_write_handle->write_buff, 0, sizeof(mic_data_write_handle->frame_size));
+    os_memset(mic_data_write_handle->write_buff, 0, mic_data_write_handle->frame_size);
 
     ret = rtos_init_semaphore(&mic_data_write_handle->sem, 1);
     if (ret != BK_OK)
@@ -376,6 +378,7 @@ bk_err_t mic_data_write_task_deinit(onboard_mic_record_priv_t *mic_data_write_ha
     if (mic_data_write_handle->write_buff)
     {
         os_free(mic_data_write_handle->write_buff);
+        mic_data_write_handle->write_buff = NULL;
     }
 
     LOGD("deinit mic data write complete\n");
@@ -411,10 +414,14 @@ static void aud_adc_dma_finish_isr(void)
     //LOGE("%s\n", __func__);
     AUD_ADC_DMA_ISR_START();
 
-    bk_err_t ret = rtos_set_semaphore(&gl_onboard_mic_record->can_process);
-    if (ret != BK_OK)
+    /* the record context may already be freed by close, guard against late interrupts */
+    if (gl_onboard_mic_record && gl_onboard_mic_record->can_process)
     {
-        LOGE("%s, rtos_set_semaphore fail \n", __func__);
+        bk_err_t ret = rtos_set_semaphore(&gl_onboard_mic_record->can_process);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, rtos_set_semaphore fail \n", __func__);
+        }
     }
 }
 
@@ -574,14 +581,14 @@ static bk_err_t onboard_mic_open(onboard_mic_record_priv_t *onboard_mic)
     if (ret != BK_OK)
     {
         LOGE("%s, %d, mic_adc_config fail\n", __func__, __LINE__);
-        goto onboard_mic_open_fail;
+        return BK_FAIL;
     }
 
     ret = aud_adc_dma_config(onboard_mic);
     if (ret != BK_OK)
     {
         LOGE("%s, %d, aud_adc_dma_config fail\n", __func__, __LINE__);
-        goto onboard_mic_open_fail;
+        goto fail_adc;
     }
 
     /* init ringbuffer */
@@ -589,19 +596,25 @@ static bk_err_t onboard_mic_open(onboard_mic_record_priv_t *onboard_mic)
     if (!onboard_mic->rb)
     {
         LOGE("%s, %d, create ringbuffer fail\n", __func__, __LINE__);
-        goto onboard_mic_open_fail;
+        goto fail_dma;
     }
 
     ret = mic_data_write_task_init(onboard_mic);
     if (ret != BK_OK)
     {
         LOGE("%s, %d, mic_data_write_task_init fail\n", __func__, __LINE__);
-        goto onboard_mic_open_fail;
+        goto fail_rb;
     }
 
     return BK_OK;
 
-onboard_mic_open_fail:
+fail_rb:
+    rb_destroy(onboard_mic->rb);
+    onboard_mic->rb = NULL;
+fail_dma:
+    aud_adc_dma_deconfig(onboard_mic);
+fail_adc:
+    mic_adc_deconfig();
 
     return BK_FAIL;
 }
@@ -613,6 +626,11 @@ static bk_err_t onboard_mic_start(onboard_mic_record_priv_t *onboard_mic)
     ONBOARD_MIC_RECORD_CHECK_NULL(onboard_mic);
 
     ret = mic_data_write_send_msg(onboard_mic->mic_data_write_msg_que, MIC_DATA_WRITE_START, NULL);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d, send message: MIC_DATA_WRITE_START fail\n", __func__, __LINE__);
+        return ret;
+    }
 
     ret = bk_dma_start(onboard_mic->adc_dma_id);
     if (ret != BK_OK)
@@ -633,19 +651,39 @@ static bk_err_t onboard_mic_stop(onboard_mic_record_priv_t *onboard_mic)
 {
     LOGD("%s \n", __func__);
 
-    bk_err_t ret = bk_dma_stop(onboard_mic->adc_dma_id);
+    ONBOARD_MIC_RECORD_CHECK_NULL(onboard_mic);
+
+    /* park the write task and wait for its ack before touching hardware,
+       so no dma ring buffer access races with the dma stop */
+    bk_err_t ret = mic_data_write_send_msg(onboard_mic->mic_data_write_msg_que, MIC_DATA_WRITE_IDLE, NULL);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d, send message: MIC_DATA_WRITE_IDLE fail\n", __func__, __LINE__);
+        return ret;
+    }
+    ret = rtos_get_semaphore(&onboard_mic->sem, BEKEN_NEVER_TIMEOUT);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d, wait mic data write task idle fail\n", __func__, __LINE__);
+        return ret;
+    }
+
+    ret = bk_dma_stop(onboard_mic->adc_dma_id);
     if (ret != BK_OK)
     {
         LOGE("%s, %d, adc dma stop fail\n", __func__, __LINE__);
+        return ret;
     }
 
     ret = bk_aud_adc_stop();
     if (ret != BK_OK)
     {
         LOGE("%s, %d, adc stop fail\n", __func__, __LINE__);
+        return ret;
     }
 
-    ret = mic_data_write_send_msg(onboard_mic->mic_data_write_msg_que, MIC_DATA_WRITE_IDLE, NULL);
+    /* reset the dma ring bookkeeping so the next start runs on a clean ring */
+    ring_buffer_clear(&onboard_mic->dma_rb);
 
     return ret;
 }
@@ -656,18 +694,24 @@ static bk_err_t onboard_mic_close(onboard_mic_record_priv_t *onboard_mic)
 
     ONBOARD_MIC_RECORD_CHECK_NULL(onboard_mic);
 
-    mic_data_write_task_deinit(onboard_mic);
-
-    bk_err_t ret = bk_dma_stop(onboard_mic->adc_dma_id);
+    bk_err_t ret = mic_data_write_task_deinit(onboard_mic);
     if (ret != BK_OK)
     {
-        LOGE("%s, %d, adc dma stop fail\n", __func__, __LINE__);
+        LOGE("%s, %d, mic data write task deinit fail\n", __func__, __LINE__);
     }
 
-    ret = bk_aud_adc_stop();
-    if (ret != BK_OK)
+    bk_err_t ret2 = bk_dma_stop(onboard_mic->adc_dma_id);
+    if (ret2 != BK_OK)
+    {
+        LOGE("%s, %d, adc dma stop fail\n", __func__, __LINE__);
+        ret = ret2;
+    }
+
+    ret2 = bk_aud_adc_stop();
+    if (ret2 != BK_OK)
     {
         LOGE("%s, %d, adc stop fail\n", __func__, __LINE__);
+        ret = ret2;
     }
 
     mic_adc_deconfig();
@@ -676,8 +720,9 @@ static bk_err_t onboard_mic_close(onboard_mic_record_priv_t *onboard_mic)
 
     /* deinit ringbuffer */
     rb_destroy(onboard_mic->rb);
+    onboard_mic->rb = NULL;
 
-    return BK_OK;
+    return ret;
 }
 
 static bk_err_t onboard_mic_set_adc_gain(int value)
@@ -711,6 +756,7 @@ static int onboard_mic_record_open(audio_record_t *record, audio_record_cfg_t *c
         LOGE("%s, %d, os_malloc temp_onboard_mic_record: %d fail\n", __func__, __LINE__, sizeof(onboard_mic_record_priv_t));
         return BK_FAIL;
     }
+    os_memset(temp_onboard_mic_record, 0, sizeof(onboard_mic_record_priv_t));
 
     record->record_ctx = temp_onboard_mic_record;
 
@@ -735,14 +781,14 @@ static int onboard_mic_record_open(audio_record_t *record, audio_record_cfg_t *c
     if (ret != BK_OK)
     {
         LOGE("%s, onboard mic open fail, ret:%d, %d \n", __func__, ret, __LINE__);
-        return ret;
+        goto open_fail;
     }
 
     ret = onboard_mic_start(temp_onboard_mic_record);
     if (ret != BK_OK)
     {
         LOGE("%s, onboard mic start fail, ret:%d, %d \n", __func__, ret, __LINE__);
-        return ret;
+        goto close_fail;
     }
 
     onboard_mic_state_set(temp_onboard_mic_record, AUDIO_RECORD_STA_RUNNING);
@@ -752,6 +798,17 @@ static int onboard_mic_record_open(audio_record_t *record, audio_record_cfg_t *c
     LOGD("onboard mic open complete \n");
 
     return BK_OK;
+
+close_fail:
+    /* onboard_mic_open() succeeded, release everything it acquired */
+    onboard_mic_close(temp_onboard_mic_record);
+open_fail:
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    os_free(temp_onboard_mic_record);
+    record->record_ctx = NULL;
+    gl_onboard_mic_record = NULL;
+
+    return ret;
 }
 
 static int onboard_mic_record_close(audio_record_t *record)
@@ -760,10 +817,9 @@ static int onboard_mic_record_close(audio_record_t *record)
 
     ONBOARD_MIC_RECORD_CHECK_NULL(record);
     onboard_mic_record_priv_t *priv = (onboard_mic_record_priv_t *)record->record_ctx;
-    ONBOARD_MIC_RECORD_CHECK_NULL(priv);
-
-    if (onboard_mic_state_get(priv) == AUDIO_RECORD_STA_IDLE)
+    if (priv == NULL)
     {
+        /* never opened or already closed, treat as success */
         return BK_OK;
     }
 
@@ -775,10 +831,17 @@ static int onboard_mic_record_close(audio_record_t *record)
         LOGE("%s, onboard mic stop fail, ret: %d, %d \n", __func__, ret, __LINE__);
     }
 
-    ret = onboard_mic_close(priv);
+    bk_err_t close_ret = onboard_mic_close(priv);
+    if (close_ret != BK_OK)
+    {
+        LOGE("%s, onboard mic close fail, ret: %d, %d \n", __func__, close_ret, __LINE__);
+        ret = close_ret;
+    }
+
     if (ret != BK_OK)
     {
-        LOGE("%s, onboard mic close fail, ret: %d, %d \n", __func__, ret, __LINE__);
+        /* keep the context so the caller can retry the cleanup */
+        return ret;
     }
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
@@ -786,6 +849,11 @@ static int onboard_mic_record_close(audio_record_t *record)
     onboard_mic_state_set(priv, AUDIO_RECORD_STA_IDLE);
 
     AUD_MIC_DATA_DUMP_CLOSE();
+
+    /* release the backend context so create/open/close/destroy cycles do not leak */
+    os_free(priv);
+    record->record_ctx = NULL;
+    gl_onboard_mic_record = NULL;
 
     LOGV("onboard mic close complete\n");
     return BK_OK;
@@ -839,7 +907,17 @@ static int onboard_mic_record_control(audio_record_t *record, audio_record_ctl_t
         if (ret != BK_OK)
         {
             LOGE("%s, onboard mic record pause fail, ret: %d, %d \n", __func__, ret, __LINE__);
+            return ret;
         }
+
+        /* wake up readers blocked in rb_read so they can exit while paused */
+        ret = rb_abort(priv->rb);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, %d, rb_abort fail, ret: %d\n", __func__, __LINE__, ret);
+            return ret;
+        }
+
         onboard_mic_state_set(priv, AUDIO_RECORD_STA_PAUSED);
     }
     else if (ctl == AUDIO_RECORD_RESUME)
@@ -849,10 +927,19 @@ static int onboard_mic_record_control(audio_record_t *record, audio_record_ctl_t
             return BK_OK;
         }
 
+        /* clear the abort flags raised by pause before data flows again */
+        ret = rb_reset(priv->rb);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, %d, rb_reset fail, ret: %d\n", __func__, __LINE__, ret);
+            return ret;
+        }
+
         ret = onboard_mic_start(priv);
         if (ret != BK_OK)
         {
             LOGE("%s, onboard mic record start fail, ret: %d, %d \n", __func__, ret, __LINE__);
+            return ret;
         }
         onboard_mic_state_set(priv, AUDIO_RECORD_STA_RUNNING);
     }

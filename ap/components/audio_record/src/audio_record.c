@@ -75,12 +75,21 @@ bk_err_t audio_record_destroy(audio_record_t *record)
         return BK_OK;
     }
 
-    ret = audio_record_close(record);
+    /* record_ctx is NULL when the backend was never opened or already closed */
+    ret = record->record_ctx != NULL ? audio_record_close(record) : BK_OK;
     if (ret != BK_OK)
     {
         LOGE("%s, %d, audio_record_close fail, ret: %d\n", __func__, __LINE__, ret);
+        /* keep the whole handle so the caller can retry the cleanup */
+        return ret;
     }
 
+    /* safety net: onboard close releases record_ctx on success */
+    if (record->record_ctx)
+    {
+        os_free(record->record_ctx);
+        record->record_ctx = NULL;
+    }
     os_free(record);
 
     return BK_OK;
