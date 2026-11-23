@@ -766,6 +766,8 @@ TASK_EXIT:
     }
 
     battery_monitor_thread_hdl = NULL;
+
+    s_charging_init_status_flag = false;
     rtos_delete_thread( NULL );
 }
 
@@ -824,14 +826,16 @@ void battery_monitor_init( void )
         return;
     }
 
+    s_charging_init_status_flag = true;
+
     bk_err_t ret = prvBatteryMonitorTaskInit();
     if( ret != BK_OK )
     {
+        s_charging_init_status_flag = false;
         BAT_MONITOR_PRT("Battery monitor task create failed!\n");
         return;
     }
 
-    s_charging_init_status_flag = true;
     BAT_MONITOR_PRT("Battery monitor initialized.\n");
 }
 
