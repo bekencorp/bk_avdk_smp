@@ -537,6 +537,15 @@ pppos_input(ppp_pcb *ppp, u8_t *s, int l)
           /* Note: If you get lots of these, check for UART frame errors or try different baud rate */
           LINK_STATS_INC(link.chkerr);
           pppos_input_drop(pppos);
+        /* If the FCS is good but no data byte was ever stored, the frame is
+         * empty: in_tail is still NULL and the code below would dereference a
+         * NULL pointer. This happens e.g. for a frame carrying only the
+         * protocol field 0x0000 received with compressed address/control
+         * fields, whose running FCS happens to equal PPP_GOODFCS.
+         * See lwIP upstream "PPP: Add test exhibiting empty packet
+         * null-deref" (6b734bbb2c, 2023-05-10). */
+        } else if (pppos->in_tail == NULL) {
+          LINK_STATS_INC(link.drop);
         /* Otherwise it's a good packet so pass it on. */
         } else {
           struct pbuf *inp;
