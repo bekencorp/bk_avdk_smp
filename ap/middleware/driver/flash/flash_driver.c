@@ -154,6 +154,8 @@ static beken_mutex_t s_flash_mutex = NULL;
 #if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
 static uint32_t s_flash_lock_cpu_id = FLASH_SHARED_CPU_MAX;
 static volatile uint8_t s_flash_irq_lock_depth[FLASH_SHARED_CPU_MAX];
+static uint8_t  s_flash_thread_lock_depth = 0;
+static uint32_t s_flash_lock_irq_flags = 0;
 #endif
 static void flash_lock_init(void)
 {
@@ -165,6 +167,12 @@ static void flash_lock_init(void)
 
 static void flash_lock(void)
 {
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	if (!rtos_is_in_interrupt_context() && s_flash_thread_lock_depth > 0) {
+		s_flash_thread_lock_depth++;
+		return;
+	}
+#endif
 	if(rtos_is_in_interrupt_context() || rtos_local_irq_disabled())
 	{
 #if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
@@ -182,43 +190,55 @@ static void flash_lock(void)
 
 	vTaskSuspendAll();
 
+	mb_flash_op_prepare();
+
 #if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	s_flash_lock_irq_flags = rtos_disable_int();
 	s_flash_lock_cpu_id = bk_flash_shared_get_cpu_id();
 	if (bk_flash_shared_acquire(s_flash_lock_cpu_id) != BK_OK) {
 		s_flash_lock_cpu_id = FLASH_SHARED_CPU_MAX;
+		rtos_enable_int(s_flash_lock_irq_flags);
 		xTaskResumeAll();
 #ifdef CONFIG_FREERTOS_SMP
 		rtos_unlock_mutex(&s_flash_mutex);
 #endif
 		BK_ASSERT(0);
 	}
+	s_flash_thread_lock_depth = 1;
 #endif
-
-	mb_flash_op_prepare();
 }
 
 static void flash_unlock(void)
 {
-	if(rtos_is_in_interrupt_context() || rtos_local_irq_disabled())
-	{
 #if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	if (!rtos_is_in_interrupt_context() && s_flash_thread_lock_depth > 0) {
+		s_flash_thread_lock_depth--;
+		if (s_flash_thread_lock_depth > 0)
+			return;
+	} else if (rtos_is_in_interrupt_context() || rtos_local_irq_disabled()) {
 		uint32_t cpu_id = bk_flash_shared_get_cpu_id();
 		if (s_flash_irq_lock_depth[cpu_id] > 0) {
 			s_flash_irq_lock_depth[cpu_id]--;
 			bk_flash_shared_release(cpu_id);
 		}
-#endif
 		return;
 	}
-
-	mb_flash_op_finish();
+#else
+	if(rtos_is_in_interrupt_context() || rtos_local_irq_disabled())
+	{
+		return;
+	}
+#endif
 
 #if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
 	if (s_flash_lock_cpu_id < FLASH_SHARED_CPU_MAX) {
 		bk_flash_shared_release(s_flash_lock_cpu_id);
 		s_flash_lock_cpu_id = FLASH_SHARED_CPU_MAX;
 	}
+	rtos_enable_int(s_flash_lock_irq_flags);
 #endif
+
+	mb_flash_op_finish();
 
 	xTaskResumeAll();
 
