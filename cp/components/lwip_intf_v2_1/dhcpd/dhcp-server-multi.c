@@ -774,7 +774,7 @@ static void dhcp_dispatch_ready_fds(fd_set *rfds, struct sockaddr_in *caddr,
 /* Single DHCP server thread. */
 void dhcp_server(void* data)
 {
-	int ret, i;
+	int ret;
 	struct sockaddr_in caddr;
 	int max_sock;
 	socklen_t flen = sizeof(caddr);
@@ -782,13 +782,22 @@ void dhcp_server(void* data)
 	struct timeval tv;
 
 	while (1) {
-		if (dhcpd_lock() != 0)
-			break;
+		if (dhcpd_lock() != 0) {
+			/* Instance state is owned under this lock; giving up
+			 * here would abandon live instances, so retry. */
+			rtos_delay_milliseconds(10);
+			continue;
+		}
 
 		/* Tear down instances flagged for stop. */
 		dhcp_cleanup_stopping_instances();
 
 		if (!dhcp_inst_any_used()) {
+			/* Clear the running flag while still holding the lock:
+			 * a start arriving after this point registers a new
+			 * instance and, seeing the flag cleared, spawns a new
+			 * thread for it. */
+			dhcpd_thread_running = false;
 			dhcpd_unlock();
 			break;
 		}
@@ -801,30 +810,30 @@ void dhcp_server(void* data)
 		ret = lwip_select(max_sock + 1, &rfds, NULL, NULL, &tv);
 
 		if (ret < 0) {
-			dhcp_e("select failed\r\n", -1);
-			break;
+			/* The thread only exits when no instance is left, so a
+			 * select error must not abandon the instances; back off
+			 * and rebuild the fd set. */
+			dhcp_e("select failed\r\n");
+			rtos_delay_milliseconds(10);
+			continue;
 		}
 		if (ret == 0)
 			continue;	/* timeout: re-evaluate instance membership */
 
-		if (dhcpd_lock() != 0)
-			break;
+		if (dhcpd_lock() != 0) {
+			rtos_delay_milliseconds(10);
+			continue;
+		}
 		dhcp_dispatch_ready_fds(&rfds, &caddr, flen);
 		dhcpd_unlock();
 	}
 
-	/* No instances left: close everything and exit. */
-	if (dhcpd_lock() == 0) {
-	for (i = 0; i < DHCP_SERVER_INST_MAX; i++) {
-		if (dhcp_inst_inited[i] || dhcp_inst_used[i] || dhcp_inst_stopping[i])
-			dhcp_release_instance(i);
-	}
-		g_dhcps_cur = &dhcp_inst[0];
-		dhcpd_thread_running = false;
-		dhcpd_unlock();
-	} else {
-		dhcpd_thread_running = false;
-	}
+	/* Only reached when no instance is left; the running flag was already
+	 * cleared under the lock above. Nothing to release here: instances are
+	 * owned and torn down exclusively by this thread. Leave g_dhcps_cur
+	 * alone: a start arriving after the decision above may already have
+	 * registered a new instance (and spawned its thread), so rewriting the
+	 * pointer here could misdirect dhcp_lookup_mac() to another slot. */
 	rtos_delete_thread(NULL);
 }
 
@@ -964,9 +973,31 @@ int dhcp_server_add_instance(void *intrfc_handle)
 		return -1;
 
 	for (i = 0; i < DHCP_SERVER_INST_MAX; i++) {
-		if (dhcp_inst_used[i] && dhcp_inst[i].prv == intrfc_handle)
-			goto out_found;	/* already running on this interface */
+		if (!dhcp_inst_used[i] || dhcp_inst[i].prv != intrfc_handle)
+			continue;
+		if (!dhcp_inst_stopping[i]) {
+			/* already running on this interface */
+			dhcpd_unlock();
+			return i;
+		}
+		/* A stop was requested but the shared thread has not torn the
+		 * instance down yet (cleanup runs at most once per select
+		 * cycle). Reusing that half-dead instance keeps the server
+		 * sockets bound to the previous AP netif with
+		 * SO_BINDTODEVICE, which after the restart silently stops DHCP
+		 * reception. Release it here, under dhcpd_lock (the same lock
+		 * the cleanup path takes), and rebuild it in place so the
+		 * sockets are re-bound to the current interface. Rebuilding
+		 * drops the lease table, which is acceptable because address
+		 * allocation is deterministic (x.x.x.99 first), so a
+		 * reconnecting client still gets its previous lease. */
+		dhcp_release_instance(i);
+		slot = i;
+		dhcp_w("dhcp instance rebuild: slot=%d handle=0x%x\r\n", i,
+		       (unsigned int)intrfc_handle);
+		goto do_init;
 	}
+
 	for (i = 0; i < DHCP_SERVER_INST_MAX; i++) {
 		if (!dhcp_inst_used[i] && !dhcp_inst_stopping[i]) {
 			slot = i;
@@ -979,6 +1010,7 @@ int dhcp_server_add_instance(void *intrfc_handle)
 		return -1;
 	}
 
+do_init:
 	if (dhcp_server_init(&dhcp_inst[slot], intrfc_handle) != 0) {
 		dhcpd_unlock();
 		return -1;
@@ -988,10 +1020,6 @@ int dhcp_server_add_instance(void *intrfc_handle)
 	dhcp_inst_used[slot] = true;
 	dhcpd_unlock();
 	return slot;
-
-out_found:
-	dhcpd_unlock();
-	return i;
 }
 
 void dhcp_enable_nack_dns_server(void)
