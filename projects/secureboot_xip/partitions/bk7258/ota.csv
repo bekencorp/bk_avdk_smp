@@ -2,3 +2,4 @@ Field,Value
 strategy,XIP
 app_security_counter,3
 app_version,0.0.1
+bootloader_ota_version,0.0.1
