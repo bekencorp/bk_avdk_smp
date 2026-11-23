@@ -9,7 +9,13 @@ ota_keys = [
     'strategy',
     'app_security_counter',
     'app_version',
+    'bootloader_ota_version',
 ]
+
+# Tail of the 4K BL2 manifest slot (written by bl1_sign.write_bl2_version_stamps).
+# Keep in sync with bl2_version.c.
+BL2_INTERNAL_VERSION_STAMP_OFFSET = 0xFE0  # internal SDK version, magic 'BL2I'
+BL2_VERSION_STAMP_OFFSET = 0xFF0           # customer version, magic 'BL2V'
 
 # Optional legacy field (ignored by pack/gen): encrypt.
 # OTA AES is derived from security.csv flash_aes_type (FIXED).
@@ -36,6 +42,10 @@ class OTA(list):
 
     def get_version(self):
         return self.csv.dic['app_version']
+
+    def get_bootloader_ota_version(self):
+        # Display/comparison only, never anti-rollback. None when absent/empty.
+        return self.csv.dic.get('bootloader_ota_version', '').strip() or None
 
     def is_overwrite(self):
         if(self.csv.dic['strategy'].upper() == 'OVERWRITE'):

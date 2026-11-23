@@ -43,6 +43,10 @@ else
 	export APP_VERSION := $(APP_VERSION)
 endif
 
+# Internal SDK BL2 version, stamped into the manifest at 0xFE0 (magic "BL2I").
+RECORD_BL2_INTERNAL_VERSION ?= 0.0.1
+export RECORD_BL2_INTERNAL_VERSION
+
 ifeq ("$(PROJECT)", "")
 	export PROJECT := app
 else
