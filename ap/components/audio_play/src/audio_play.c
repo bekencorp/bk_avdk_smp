@@ -80,12 +80,21 @@ bk_err_t audio_play_destroy(audio_play_t *play)
         return BK_OK;
     }
 
-    ret = audio_play_close(play);
+    /* play_ctx is NULL when the backend was never opened or already closed */
+    ret = play->play_ctx != NULL ? audio_play_close(play) : BK_OK;
     if (ret != BK_OK)
     {
         LOGE("%s, %d, audio_play_close fail, ret: %d\n", __func__, __LINE__, ret);
+        /* keep the whole handle so the caller can retry the cleanup */
+        return ret;
     }
 
+    /* safety net: onboard close releases play_ctx on success */
+    if (play->play_ctx)
+    {
+        os_free(play->play_ctx);
+        play->play_ctx = NULL;
+    }
     os_free(play);
 
     return BK_OK;
