@@ -17,6 +17,7 @@
 // For OS-dependently initialization, put them to OSK or bk_system.
 
 #include <common/bk_include.h>
+#include <soc/soc.h>
 #include "bk_sys_ctrl.h"
 #include "stdlib.h"
 #include "bk_drv_model.h"
@@ -272,9 +273,18 @@ void __stack_chk_fail (void)
 }
 
 
+/* The VDDD/VDDDIG boost is required by TH25Q64HA (0xCD6017) only. */
+#define FLASH_TH25Q64HA_ID       (0xCD6017)
+/* REG_0x8 of the flash controller: JEDEC ID latched by the bootloader. */
+#define FLASH_RD_ID_REG_ADDR     (SOC_FLASH_REG_BASE + (0x8 << 2))
+uint8_t g_th25q64_volt_boost;
+
 int components_early_init(void)
 {
     set_ap_startup_index(AP_ENTER_COMPONTENT_EARLY_INIT);
+
+	g_th25q64_volt_boost =
+		(FLASH_TH25Q64HA_ID == (*(volatile uint32_t *)FLASH_RD_ID_REG_ADDR)) ? 1 : 0;
 #if CONFIG_RESET_REASON
 	reset_reason_init();
 #endif

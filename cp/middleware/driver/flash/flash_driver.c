@@ -23,6 +23,10 @@
 #include "driver/flash_partition.h"
 #include <modules/chip_support.h>
 #include "flash_bypass.h"
+#include "sys_ll.h"
+
+/* Set in components_early_init()/bk_init(); re-synced here from the real ID. */
+extern uint8_t g_th25q64_volt_boost;
 
 #if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
 #include "flash_shared_lock.h"
@@ -399,6 +403,76 @@ static void flash_set_qe(void)
 	flash_write_status_reg(status_reg);
 }
 
+/* TH25Q64 SR3 S21/S22 = DRV1/DRV0: write 00 for the lowest flash IO drive. */
+#define FLASH_TH25Q64_ID            (0xCD6017)
+#define FLASH_TH25Q64_SR3_DRV_MASK  (0x3U << 5)   /* S21/S22 in SR3 */
+#define FLASH_CMD_WRSR_SR3          (0x11)
+
+static flash_line_mode_t flash_set_line_mode(flash_line_mode_t line_mode);
+
+/* The TH25Q64HA row keeps status_reg_size 2, so read/write SR3 explicitly. */
+static uint8_t flash_th25q64_read_sr3(void)
+{
+	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
+	uint8_t sr3 = (uint8_t)(flash_hal_read_status_reg(&s_flash.hal, 3) >> 16);
+
+	flash_set_line_mode(old_line_mode);
+
+	return sr3;
+}
+
+static void flash_th25q64_write_sr3(uint8_t sr3)
+{
+	flash_hw_t *hw = s_flash.hal.hw;
+	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
+
+	flash_ll_wait_op_done(hw);
+	hw->cmd_cfg.v = 0;
+	hw->config.wrsr_data = sr3;
+	hw->op_ctrl.wp_value = 1;
+	flash_ll_wait_op_done(hw);
+
+	flash_ll_init_wrsr_cmd(hw, FLASH_CMD_WRSR_SR3);
+	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);
+	flash_ll_wait_op_done(hw);
+	flash_ll_deinit_wrsr_cmd(hw);
+	hw->op_ctrl.wp_value = 0;
+
+	/* SR3 is non-volatile, wait for the internal write to finish. */
+	for (int i = 0; i < 50; i++) {
+		if ((flash_hal_read_status_reg(&s_flash.hal, 1) & 0x1) == 0) {
+			break;
+		}
+		rtos_delay_milliseconds(1);
+	}
+
+	flash_set_line_mode(old_line_mode);
+}
+
+static void flash_th25q64_clear_s21_s22(void)
+{
+	uint8_t sr3;
+
+	if (FLASH_TH25Q64_ID != s_flash.flash_id) {
+		return;
+	}
+
+	sr3 = flash_th25q64_read_sr3();
+	FLASH_LOGI("drv lowest before: SR3=0x%02x S21/S22=%u%u\r\n",
+		sr3, (sr3 >> 5) & 0x1, (sr3 >> 6) & 0x1);
+
+	if (sr3 & FLASH_TH25Q64_SR3_DRV_MASK) {
+		flash_th25q64_write_sr3(sr3 & ~FLASH_TH25Q64_SR3_DRV_MASK);
+
+		sr3 = flash_th25q64_read_sr3();
+		FLASH_LOGI("drv lowest after : SR3=0x%02x S21/S22=%u%u (%s)\r\n",
+			sr3, (sr3 >> 5) & 0x1, (sr3 >> 6) & 0x1,
+			(sr3 & FLASH_TH25Q64_SR3_DRV_MASK) ? "NG" : "OK");
+	} else {
+		FLASH_LOGI("drv lowest skip  : S21/S22 already 00\r\n");
+	}
+}
+
 static void flash_read_common(uint8_t *buffer, uint32_t address, uint32_t len)
 {
 	uint32_t addr = address & (~FLASH_ADDRESS_MASK);
@@ -615,11 +689,23 @@ bk_err_t bk_flash_driver_init(void)
 
 	flash_get_current_config();
 
+	/* Re-sync the VDDD/VDDDIG boost gate with the authoritative JEDEC ID
+	 * and re-apply it in case the early latched-ID read missed. */
+	g_th25q64_volt_boost = (FLASH_TH25Q64_ID == s_flash.flash_id) ? 1 : 0;
+	if (g_th25q64_volt_boost) {
+		sys_ll_set_ana_reg9_vdighsel(0x7);
+		sys_ll_set_ana_reg9_vcorehsel(0xF);
+		sys_ll_set_ana_reg8_coreldo_hp(1);
+		sys_ll_set_ana_reg9_en_fast_coreldo(1);
+	}
+
 	flash_hal_set_quad_m_value(&s_flash.hal, s_flash.flash_cfg->coutinuous_read_mode_bits_val);
 
 	s_flash.flash_status_reg_val = flash_read_status_reg();
 
 	flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+
+	flash_th25q64_clear_s21_s22();
 
 	flash_set_line_mode(s_flash.flash_cfg->line_mode);
 
@@ -660,6 +746,15 @@ bk_err_t bk_flash_driver_init(void)
 	sys_drv_set_sys2flsh_2wire(1);
 
 #endif
+
+	/* Log the fitted flash part and applied settings for field correlation. */
+	FLASH_LOGI("boot: id=0x%06x size=%uM line=%u clk_sel=%u clk_div=%u crc_en=%u\r\n",
+		(unsigned)s_flash.flash_id,
+		(unsigned)(s_flash.flash_cfg->flash_size >> 20),
+		(unsigned)s_flash.flash_cfg->line_mode,
+		(unsigned)sys_drv_flash_get_clk_sel(),
+		(unsigned)sys_drv_flash_get_clk_div(),
+		(unsigned)((*(volatile uint32_t *)0x44030028U >> 26) & 0x1U));
 
 	flash_lock_init();
 

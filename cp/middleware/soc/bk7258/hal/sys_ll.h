@@ -29,6 +29,9 @@
 extern "C" {
 #endif
 
+/* Set when the boot flash is TH25Q64HA (0xCD6017); gates the VDDD/VDDDIG boost. */
+extern uint8_t g_th25q64_volt_boost;
+
 #define SYS_LL_REG_BASE   SOC_SYS_REG_BASE
 
 //This way of setting ana_reg_bit value is only for sys_ctrl, other driver please implement by yourself!!
@@ -6994,7 +6997,13 @@ static inline uint32_t sys_ll_get_ana_reg8_ioldo_lp(void) {
 }
 
 static inline void sys_ll_set_ana_reg8_coreldo_hp(uint32_t v) {
-	sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x48 << 2)), 1, 0x1, v);
+	if (g_th25q64_volt_boost) {
+		/* Keep the core LDO in high-power mode for fast transient response. */
+		(void)v;
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x48 << 2)), 1, 0x1, 0x1);
+	} else {
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x48 << 2)), 1, 0x1, v);
+	}
 }
 
 static inline uint32_t sys_ll_get_ana_reg8_coreldo_hp(void) {
@@ -7247,7 +7256,13 @@ static inline uint32_t sys_ll_get_ana_reg9_ensfsdd(void) {
 }
 
 static inline void sys_ll_set_ana_reg9_vcorehsel(uint32_t v) {
-	sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 16, 0xf, v);
+	if (g_th25q64_volt_boost) {
+		/* Force VDDDIG high voltage to 0.975 V. */
+		(void)v;
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 16, 0xf, 0xf);
+	} else {
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 16, 0xf, v);
+	}
 }
 
 static inline uint32_t sys_ll_get_ana_reg9_vcorehsel(void) {
@@ -7274,7 +7289,13 @@ static inline uint32_t sys_ll_get_ana_reg9_vlden(void) {
 }
 
 static inline void sys_ll_set_ana_reg9_en_fast_coreldo(uint32_t v) {
-	sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 24, 0x1, v);
+	if (g_th25q64_volt_boost) {
+		/* Enable digldo fast response. */
+		(void)v;
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 24, 0x1, 0x1);
+	} else {
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 24, 0x1, v);
+	}
 }
 
 static inline uint32_t sys_ll_get_ana_reg9_en_fast_coreldo(void) {
@@ -7292,7 +7313,13 @@ static inline uint32_t sys_ll_get_ana_reg9_pwdcoreldo(void) {
 }
 
 static inline void sys_ll_set_ana_reg9_vdighsel(uint32_t v) {
-	sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 26, 0x7, v);
+	if (g_th25q64_volt_boost) {
+		/* Force VDDD high voltage to 1.05 V. */
+		(void)v;
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 26, 0x7, 0x7);
+	} else {
+		sys_set_ana_reg_bit((SOC_SYS_REG_BASE + (0x49 << 2)), 26, 0x7, v);
+	}
 }
 
 static inline uint32_t sys_ll_get_ana_reg9_vdighsel(void) {

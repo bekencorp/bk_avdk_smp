@@ -17,6 +17,7 @@
 // For OS-dependently initialization, put them to OSK or bk_system.
 
 #include <common/bk_include.h>
+#include <soc/soc.h>
 #include "bk_sys_ctrl.h"
 #include "stdlib.h"
 #include "bk_drv_model.h"
@@ -26,6 +27,7 @@
 #include <common/sys_config.h>
 #include "release.h"
 #include "sys_driver.h"
+#include "sys_ll.h"
 #include "bk_pm_model.h"
 #include "bk_private/bk_init.h"
 #if CONFIG_SOC_BK7256XX
@@ -235,8 +237,26 @@ void __stack_chk_fail (void)
 }
 
 
+/* The VDDD/VDDDIG boost is required by TH25Q64HA (0xCD6017) only. */
+#define FLASH_TH25Q64HA_ID       (0xCD6017)
+/* REG_0x8 of the flash controller: JEDEC ID latched by the bootloader. */
+#define FLASH_RD_ID_REG_ADDR     (SOC_FLASH_REG_BASE + (0x8 << 2))
+uint8_t g_th25q64_volt_boost;
+
 int components_early_init(void)
 {
+	g_th25q64_volt_boost =
+		(FLASH_TH25Q64HA_ID == (*(volatile uint32_t *)FLASH_RD_ID_REG_ADDR)) ? 1 : 0;
+
+	/* TH25Q64HA only: VDDD must be raised to 1.05 V before VDDDIG and
+	 * before any CPU/bus switch to >= 240 MHz. */
+	if (g_th25q64_volt_boost) {
+		sys_ll_set_ana_reg9_vdighsel(0x7);
+
+		/* VDDDIG follows VDDD; both must be up before >= 240 MHz. */
+		sys_ll_set_ana_reg9_vcorehsel(0xF);
+	}
+
 #if CONFIG_RESET_REASON
 	reset_reason_init();
 #endif
@@ -244,6 +264,20 @@ int components_early_init(void)
 
 	if(driver_early_init())
 		return BK_FAIL;
+
+	/* Force core LDO high-power mode and digldo fast response early. */
+	if (g_th25q64_volt_boost) {
+		volatile uint32_t *sys_regs = (volatile uint32_t *)SOC_SYS_REG_BASE;
+
+		sys_regs[0x48] |= (0x1U << 1);   /* coreldo_hp */
+		while (sys_regs[0x3a] & (1U << 8)) {
+			/* wait analog SPI idle */
+		}
+		sys_regs[0x49] |= (0x1U << 24);  /* en_fast_coreldo */
+		while (sys_regs[0x3a] & (1U << 9)) {
+			/* wait analog SPI idle */
+		}
+	}
 
 	pm_init();
 
