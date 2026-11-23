@@ -265,6 +265,7 @@ static void flash_get_current_config(void)
 		s_flash.flash_cfg = &flash_config[ARRAY_SIZE(flash_config) - 1];
 		for(int i = 0; i < 10; i++) {
 			FLASH_LOGE("This flash is not identified, choose default config\r\n");
+			BK_ASSERT(0);
 		}
 	}
 }
