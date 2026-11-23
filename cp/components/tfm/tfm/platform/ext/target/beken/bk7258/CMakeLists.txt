@@ -181,6 +181,8 @@ set(platform_bl2_src
 			${TFM_BEKEN}/bl2/flash_map.c
 			${TFM_BEKEN}/bl2/boot_param.c
 			${TFM_BEKEN}/bl2/boot_param_ops.c
+			# BL2 (bootloader) version stamp reader (bl2_main.c logs it)
+			${TFM_BEKEN}/bl2/bl2_version.c
 			${TFM_BEKEN}/partition/flash_partition.c
 			${TFM_BEKEN}/nv_otp/rotpk.c
 			${TFM_BEKEN}/nv_otp/otp_flash.c

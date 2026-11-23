@@ -35,6 +35,7 @@
 #include "partitions_gen.h"
 #include "flash_partition.h"
 #include "boot_param.h"
+#include "bl2_version.h"
 #include "aon_pmu_hal.h"
 #include "driver/flash.h"
 #include <common/bk_err.h>
@@ -200,6 +201,18 @@ int main(void)
     flash_map_init();
     //dump_partition();
     dump_efuse();
+
+    uint32_t bl2_ver = bl2_get_version();
+    if (bl2_ver == BL2_VERSION_ABSENT) {
+        BOOT_LOG_FORCE("BL2 version: no stamp");
+    } else if (bl2_ver == BL2_VERSION_CORRUPT) {
+        BOOT_LOG_FORCE("BL2 version: stamp corrupt");
+    } else {
+        BOOT_LOG_FORCE("BL2 version: %d.%d.%d",
+                       (int)((bl2_ver >> 16) & 0xFFu),
+                       (int)((bl2_ver >> 8) & 0xFFu),
+                       (int)(bl2_ver & 0xFFu));
+    }
 
     plat_err = tfm_plat_otp_init();
     if (plat_err != TFM_PLAT_ERR_SUCCESS) {
